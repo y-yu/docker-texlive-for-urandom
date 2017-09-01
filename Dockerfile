@@ -1,12 +1,68 @@
-FROM frolvlad/alpine-glibc
+FROM alpine:3.5
 
 MAINTAINER Yuu YOSHIMURA <yyu [at] mental.poker>
 
-ENV REPOSITORY http://ftp.jaist.ac.jp/pub/CTAN/systems/texlive/tlnet
+# If you bulid this in Japanese, you should use the following argument:
+ARG REPOSITORY=http://ftp.jaist.ac.jp/pub/CTAN/systems/texlive/tlnet
+# ARG REPOSITORY=http://ctan.sharelatex.com/tex-archive/systems/texlive/tlnet
 
-ENV PATH /usr/local/texlive/bin/x86_64-linux:$PATH
+ENV PATH=/usr/local/texlive/bin/x86_64-linux:$PATH
 
-RUN apk --no-cache add perl wget xz tar fontconfig-dev make && \
+ENV LANG=ja_JP.UTF-8
+
+# Install glibc and Set ja_JP.UTF-8 locale as default
+# This is copy from frolvlad/alpine-glibc
+RUN ALPINE_GLIBC_BASE_URL="https://github.com/sgerrand/alpine-pkg-glibc/releases/download" && \
+    ALPINE_GLIBC_PACKAGE_VERSION="2.25-r0" && \
+    ALPINE_GLIBC_BASE_PACKAGE_FILENAME="glibc-$ALPINE_GLIBC_PACKAGE_VERSION.apk" && \
+    ALPINE_GLIBC_BIN_PACKAGE_FILENAME="glibc-bin-$ALPINE_GLIBC_PACKAGE_VERSION.apk" && \
+    ALPINE_GLIBC_I18N_PACKAGE_FILENAME="glibc-i18n-$ALPINE_GLIBC_PACKAGE_VERSION.apk" && \
+    apk add --no-cache --virtual=.build-dependencies wget ca-certificates && \
+    wget \
+        "https://raw.githubusercontent.com/andyshinn/alpine-pkg-glibc/master/sgerrand.rsa.pub" \
+        -O "/etc/apk/keys/sgerrand.rsa.pub" && \
+    wget \
+        "$ALPINE_GLIBC_BASE_URL/$ALPINE_GLIBC_PACKAGE_VERSION/$ALPINE_GLIBC_BASE_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_BASE_URL/$ALPINE_GLIBC_PACKAGE_VERSION/$ALPINE_GLIBC_BIN_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_BASE_URL/$ALPINE_GLIBC_PACKAGE_VERSION/$ALPINE_GLIBC_I18N_PACKAGE_FILENAME" && \
+    apk add --no-cache \
+        "$ALPINE_GLIBC_BASE_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_BIN_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_I18N_PACKAGE_FILENAME" && \
+    \
+    rm "/etc/apk/keys/sgerrand.rsa.pub" && \
+    /usr/glibc-compat/bin/localedef --force --inputfile POSIX --charmap UTF-8 ja_JP.UTF-8 || true && \
+    echo "export LANG=ja_JP.UTF-8" > /etc/profile.d/locale.sh && \
+    \
+    apk del glibc-i18n && \
+    \
+    rm "/root/.wget-hsts" && \
+    apk del .build-dependencies && \
+    rm \
+        "$ALPINE_GLIBC_BASE_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_BIN_PACKAGE_FILENAME" \
+        "$ALPINE_GLIBC_I18N_PACKAGE_FILENAME"
+
+RUN apk --no-cache add bash wget perl fontconfig-dev make python py-pip
+
+# Set Timezone to Tokyo
+RUN apk --no-cache add tzdata && \
+    cp /usr/share/zoneinfo/Asia/Tokyo /etc/localtime && \
+    echo 'Asia/Tokyo' > /etc/timezone && \
+    apk --no-cache del tzdata
+
+# Install Pandoc and Pandocfilters
+# This is copy from conoria/alpine-pandoc
+RUN wget --no-check-certificate -O /etc/apk/keys/conor.rsa.pub \
+      "https://raw.githubusercontent.com/ConorIA/dockerfiles/master/alpine-pandoc/conor@conr.ca-584aeee5.rsa.pub" && \
+    echo https://conoria.gitlab.io/alpine-pandoc/ >> /etc/apk/repositories && \
+    echo "@testing http://nl.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories && \
+    apk add --no-cache cmark@testing pandoc && \
+    rm /etc/apk/keys/conor.rsa.pub && \
+    pip install pandocfilters
+
+# Install TeXLive and Fonts
+RUN apk --no-cache add xz tar && \
     mkdir -p /tmp/install-tl-unx && \
     wget -qO- "$REPOSITORY/install-tl-unx.tar.gz" | \
       tar -xz -C /tmp/install-tl-unx --strip-components=1 && \
@@ -29,12 +85,19 @@ RUN apk --no-cache add perl wget xz tar fontconfig-dev make && \
       -repository $REPOSITORY \
       install \
         collection-luatex collection-fontsrecommended collection-langjapanese \
-        latexmk enumitem menukeys xstring adjustbox collectbox relsize \
-        catoptions cprotect bigfoot libertine && \
-    apk --no-cache del xz tar fontconfig-dev && \
-      rm -rf /tmp/install-tl-unx
-
-RUN apk --no-cache add bash
+        collection-latexrecommended latexmk enumitem menukeys \
+        type1cm xkeyval everyhook svn-prov etoolbox \
+        libertine newtx quotchap datetime2 tracklang \
+        mathtools pdfpages subfiles cm-unicode boondox \
+        xstring pgf adjustbox collectbox relsize catoptions && \
+    mkdir -p /tmp/source-code-pro && \
+    wget -qO- --no-check-certificate \
+      https://github.com/adobe-fonts/source-code-pro/archive/2.030R-ro/1.050R-it.tar.gz | \
+        tar -xz -C /tmp/source-code-pro && \
+    mkdir -p /root/.fonts && \
+    cp /tmp/source-code-pro/source-code-pro-2.030R-ro-1.050R-it/OTF/*.otf /root/.fonts/ && \
+    apk --no-cache del xz tar && \
+    rm -rf /tmp/install-tl-unx /tmp/source-code-pro
 
 RUN mkdir /workdir
 
