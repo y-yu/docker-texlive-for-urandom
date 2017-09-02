@@ -1,4 +1,4 @@
-FROM alpine:3.5
+FROM openjdk:8-alpine
 
 MAINTAINER Yuu YOSHIMURA <yyu [at] mental.poker>
 
@@ -6,7 +6,7 @@ MAINTAINER Yuu YOSHIMURA <yyu [at] mental.poker>
 ARG REPOSITORY=http://ftp.jaist.ac.jp/pub/CTAN/systems/texlive/tlnet
 # ARG REPOSITORY=http://ctan.sharelatex.com/tex-archive/systems/texlive/tlnet
 
-ENV PATH=/usr/local/texlive/bin/x86_64-linux:$PATH
+ENV PATH=/usr/local/texlive/bin/x86_64-linux:/usr/glibc-compat/bin:$PATH
 
 ENV LANG=ja_JP.UTF-8
 
@@ -53,12 +53,11 @@ RUN apk --no-cache add tzdata && \
 
 # Install Pandoc and Pandocfilters
 # This is copy from conoria/alpine-pandoc
-RUN wget --no-check-certificate -O /etc/apk/keys/conor.rsa.pub \
+RUN wget --no-check-certificate -O /etc/apk/keys/conor@conr.ca-584aeee5.rsa.pub \
       "https://raw.githubusercontent.com/ConorIA/dockerfiles/master/alpine-pandoc/conor@conr.ca-584aeee5.rsa.pub" && \
     echo https://conoria.gitlab.io/alpine-pandoc/ >> /etc/apk/repositories && \
     echo "@testing http://nl.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories && \
     apk add --no-cache cmark@testing pandoc && \
-    rm /etc/apk/keys/conor.rsa.pub && \
     pip install pandocfilters
 
 # Install TeXLive and Fonts
@@ -87,7 +86,7 @@ RUN apk --no-cache add xz tar && \
         collection-luatex collection-fontsrecommended collection-langjapanese \
         collection-latexrecommended latexmk enumitem menukeys \
         type1cm xkeyval everyhook svn-prov etoolbox \
-        libertine newtx quotchap datetime2 tracklang \
+        libertine newtx quotchap datetime2 texosquery tracklang \
         mathtools pdfpages subfiles cm-unicode boondox \
         xstring pgf adjustbox collectbox relsize catoptions && \
     mkdir -p /tmp/source-code-pro && \
